@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频录制+拍照</title>
+</head>
+
+<body>
+    <video id="gum" autoplay muted style="display: block;margin: 0 auto;"></video>
+    <div style="text-align: center;">
+        <button id="record" disabled>开始录制</button>
+        <button id="upload" disabled>播放</button>
+        <button id="cap">拍照</button>
+    </div>
+    <div style="display: flex;justify-content: center;">
+        <video id="playvideo" autoplay></video>
+        <canvas id='showcap' width="480" height="480"></canvas>
+    </div>
+</body>
+<script>
+    var mediaSource = new MediaSource();
+    mediaSource.addEventListener('sourceopen', handleSourceOpen, false);
+    var mediaRecorder;
+    var recordedBlobs;
+    var sourceBuffer;
+    var gumVideo = document.querySelector('video#gum');
+    var recordButton = document.querySelector('button#record');
+    var uploadButton = document.querySelector('button#upload');
+    var capButton = document.querySelector('button#cap');
+    var canvas = document.querySelector('canvas#showcap');
+    let context = canvas.getContext('2d');
+    recordButton.onclick = toggleRecording;
+    uploadButton.onclick = upload;
+    capButton.onclick = capphoto
+    // window.isSecureContext could be used for Chrome
+    var isSecureOrigin = location.protocol === 'https:' || location.hostname === 'localhost';
+    // if (!isSecureOrigin) {
+    //     alert('getUserMedia() must be run from a secure origin: HTTPS or localhost.' + '\n\nChanging protocol to HTTPS');
+    //     location.protocol = 'HTTPS';
+    // }
+    var constraints = {
+        audio: true,
+        video: {
+            width: 480,//视频宽度
+            height: 480,//视频高度
+            frameRate: 60,//每秒60帧
+        }
+    };
+    // navigator.mediaDevices.getUserMedia(constraints).
+    //     then(handleSuccess).catch(handleError);
+    if (navigator.mediaDevices.getUserMedia) {
+        //最新的标准API
+        navigator.mediaDevices.getUserMedia(constraints).then(handleSuccess).catch(handleError);
+    } else if (navigator.webkitGetUserMedia) {
+        //webkit核心浏览器
+        navigator.webkitGetUserMedia(constraints, handleSuccess, handleError)
+    } else if (navigator.mozGetUserMedia) {
+        //firfox浏览器
+        navigator.mozGetUserMedia(constraints, handleSuccess, handleError);
+    } else if (navigator.getUserMedia) {
+        //旧版API
+        navigator.getUserMedia(constraints, handleSuccess, handleError);
+    }
+    function handleSourceOpen(event) {
+        console.log('MediaSource opened');
+        sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8"');
+        console.log('Source buffer: ', sourceBuffer);
+    }
+    function handleSuccess(stream) {
+        recordButton.disabled = false;
+        console.log('getUserMedia() got stream: ', stream);
+        window.stream = stream;
+        gumVideo.srcObject = stream;
+    }
+
+    function handleError(error) {
+        console.log('navigator.getUserMedia error: ', error);
+    }
+
+    function handleDataAvailable(event) {
+        if (event.data && event.data.size > 0) {
+            recordedBlobs.push(event.data);
+        }
+    }
+
+    function handleStop(event) {
+        console.log('Recorder stopped: ', event);
+    }
+
+    function toggleRecording() {
+        if (recordButton.textContent === '开始录制') {
+            startRecording();
+        } else {
+            stopRecording();
+            recordButton.textContent = '开始录制';
+            uploadButton.disabled = false;
+        }
+    }
+
+    function startRecording() {
+        recordedBlobs = [];
+        var options = { mimeType: 'video/webm;codecs=h264' };
+        try {
+            mediaRecorder = new MediaRecorder(window.stream, options);
+        } catch (e) {
+            console.error('Exception while creating MediaRecorder: ' + e);
+            alert('Exception while creating MediaRecorder: '
+                + e + '. mimeType: ' + options.mimeType);
+            return;
+        }
+        console.log('Created MediaRecorder', mediaRecorder, 'with options', options);
+        recordButton.textContent = '结束录制';
+        uploadButton.disabled = true;
+        mediaRecorder.onstop = handleStop;
+        mediaRecorder.ondataavailable = handleDataAvailable;
+        mediaRecorder.start(10); // collect 10ms of data
+        console.log('MediaRecorder started', mediaRecorder);
+    }
+
+    function stopRecording() {
+        mediaRecorder.stop();
+        console.log('Recorded Blobs: ', recordedBlobs);
+    }
+    function upload() {
+        //保存在本地，通过post请求
+        //还可以用append方法添加一些附加信息参数为(name,value)，如下面的代码：
+        var blob = new Blob(recordedBlobs, { type: 'video/mp4' });
+        console.log(blob);
+        let src = window.URL.createObjectURL(blob);
+        document.getElementById('playvideo').src = src
+    }
+    function capphoto() {
+        context.drawImage(gumVideo, 0, 0, 480, 480);
+        let dd = canvas.toDataURL('image/jpg');
+        console.log(776, dd)
+    }
+</script>
+
+</html>
